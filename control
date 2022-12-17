@@ -1,0 +1,5 @@
+echo "Package: frostproxy" >> frostproxy/DEBIAN/control
+echo "Version: 1.0" >> frostproxy/DEBIAN/control
+echo "Architecture: all" >> frostproxy/DEBIAN/control
+echo "Maintainer: Your Name <your@email.com>" >> frostproxy/DEBIAN/control
+echo "Description: A tool for managing frostproxy agents." >> frostproxy/DEBIAN/control

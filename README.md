@@ -25,3 +25,11 @@ sudo apt-get install ./frostproxy.deb
 ```js
 frostproxy tunnel localhost:3000 domain.com
 ```
+
+# General Notes:
+```
+chmod 755 /frostproxy/DEBIAN/postinst
+dpkg-deb --build frostproxy
+sudo apt-get install ./frostproxy.deb
+apt remove frostproxy
+``

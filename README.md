@@ -10,6 +10,9 @@ mkdir -p frostproxy/DEBIAN
 ```js
 dpkg-deb --build frostproxy
 ```
+```js
+dpkg -i frostproxy.deb
+```
 
 # Install the package using apt-get.
 

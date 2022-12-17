@@ -14,7 +14,17 @@ echo "  tunnel delete frostproxy tunnel"
 fi
 
 if [ "$1" == "tunnel" ]; then
-target=\$2"
-domain=\$3"
-curl -X POST https://frostproxy.com -d '{\"domain\":\"\$domain\",\"target\":\"\$target\"}'
+target="$2"
+domain="$3"
+
+if [ -z "$2" ]; then
+echo "specify a target: 64.44.56.454:8000"
+fi
+if [ -z "$3" ]; then
+echo "specify a Domain: example.com"
+fi
+
+echo $target
+echo $domain
+#curl -X POST https://frostproxy.com -d '{\"domain\":\"\$domain\",\"target\":\"\$target\"}'
 fi

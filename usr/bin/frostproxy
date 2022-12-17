@@ -1,0 +1,20 @@
+#!/bin/bash
+if [ -z "$1" ]; then
+ echo "Enter a command, Use `frostproxy help` for more info"
+fi
+
+if [ "$1" == "help" ]; then
+echo "Usage: frostproxy [command]"
+echo ""
+echo "Commands:"
+echo "  config token [token]"
+echo "  tunnel start  frostproxy tunnel"
+echo "  tunnel stop   frostproxy tunnel"
+echo "  tunnel delete frostproxy tunnel"
+fi
+
+if [ "$1" == "tunnel" ]; then
+target=\$2"
+domain=\$3"
+curl -X POST https://frostproxy.com -d '{\"domain\":\"\$domain\",\"target\":\"\$target\"}'
+fi

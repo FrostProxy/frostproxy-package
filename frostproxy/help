@@ -1,0 +1,9 @@
+echo "#!/bin/bash" >> frostproxy/frostproxy
+echo "if [ \"\$1\" == \"help\" ]; then" >> frostproxy/frostproxy
+echo "  echo \"Usage: frostproxy [command]\"" >> frostproxy/frostproxy
+echo "  echo \"\"" >> frostproxy/frostproxy
+echo "  echo \"Commands:\"" >> frostproxy/frostproxy
+echo "  echo \"  start   Start a frostproxy agent\"" >> frostproxy/frostproxy
+echo "  echo \"  stop    Stop a frostproxy agent\"" >> frostproxy/frostproxy
+echo "  echo \"  restart Restart a frostproxy agent\"" >> frostproxy/frostproxy
+echo "  echo \"  update  Update a frostproxy agent\"" >> frostproxy

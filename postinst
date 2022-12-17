@@ -1,4 +1,4 @@
-echo "#!/bin/bash" >> frostproxy/DEBIAN/postinst
-echo "mkdir -p /usr/local/bin" >> frostproxy/DEBIAN/postinst
-echo "cp frostproxy /usr/local/bin" >> frostproxy/DEBIAN/postinst
-echo "chmod +x /usr/local/bin/frostproxy" >> frostproxy/DEBIAN/postinst
+#!/bin/bash
+mkdir -p /usr/local/bin
+cp -r frostproxy /usr/local/bin/
+chmod +x /usr/local/bin/frostproxy

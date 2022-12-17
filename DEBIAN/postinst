@@ -1,4 +1,4 @@
 #!/bin/bash
 mkdir -p /usr/local/bin
-cp -r frostproxy /usr/local/bin/
+cp frostproxy /usr/local/bin/
 chmod +x /usr/local/bin/frostproxy

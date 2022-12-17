@@ -3,4 +3,4 @@ echo "if [ \"\$1\" == \"tunnel\" ]; then" >> frostproxy/frostproxy
 echo "  target=\$2" >> frostproxy/frostproxy
 echo "  domain=\$3" >> frostproxy/frostproxy
 echo "  curl -X POST https://frostproxy.com -d '{\"domain\":\"\$domain\",\"target\":\"\$target\"}'" >> frostproxy/frostproxy
-echo "fi" >> frostproxy/frostproxy
+echo "fi"

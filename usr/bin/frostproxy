@@ -72,14 +72,41 @@ if [ "$1" == "tunnel" ]; then
             fi
 
             echo "Creating tunnel..."
+
+            set IP=%hostname -I | awk '{print $1}'
+
+
+            set /a sum=%IP% + %2
+            responsetunnel=curl -X POST https://frostproxy.com/api/tunnel/add/"$domain" -d "{ ID: '$token', target: '%sum%', ssl: '$ssl' }"
+
+
+
+            if [ "$responsetunnel.statusCode" == "200" ]; then
+                echo "Tunnel created successfully"
+                exit 1
+            fi
+
+            if [ "$responsetunnel.statusCode" == "400" ]; then
+                echo "Tunnel already exists"
+                exit 1
+            fi
+
+            if [ "$responsetunnel.statusCode" == "500" ]; then
+                echo "Invalid token"
+                exit 1
+            fi
             
 
                echo "Session Status:          Online"
-   echo "Tunnels:                 1"
-   echo "Website Interface:       example.com"
-   echo "Forwarding:              https://example.com -> 64.44.56.454:8000"
+               echo "Tunnels:                 1"
+               echo "Website Interface:       $domain"
+               if [ "$ssl" == "true" ]; then
+                   echo "Forwarding:              https://$domain -> $target"
+               fi
+               if [ "$ssl" == "false" ]; then
+                   echo "Forwarding:              http://$domain -> $target"
+               fi
             
-            #curl -X POST https://frostproxy.com -d '{"domain":"$domain","target":"$target"}'
         fi
     fi
 fi

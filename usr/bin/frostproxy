@@ -81,4 +81,14 @@ fi
 
 if [ "$1" == "list" ]; then
     echo "Listing tunnels..."
+
+
+
+
+   echo "Session Status:          Online"
+   echo "Tunnels:                 1"
+   echo "Website Interface:       example.com"
+   echo "Forwarding:              https://example.com -> 64.44.56.454:8000"
+
+
 fi

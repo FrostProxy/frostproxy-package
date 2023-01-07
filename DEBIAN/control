@@ -1,5 +1,5 @@
 Package: frostproxy
-Version: 1.0
+Version: 2.0
 Architecture: all
 Maintainer: Your Name <your@email.com>
 Description: A tool for managing frostproxy agents.

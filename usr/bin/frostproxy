@@ -9,7 +9,7 @@ if [ "$1" == "help" ]; then
     echo ""
     echo "Commands:"
     echo "  config token [token]"
-    echo "  tunnel target [http:64.44.343.3000] domain [example.com] ssl [true/false]"
+    echo "  tunnel target 3000 example.com --ssl (OR for no ssl) tunnel target 3000 example.com"
     echo "  list [tunnels]"
 fi
 
@@ -30,7 +30,7 @@ fi
 if [ "$1" == "tunnel" ]; then
     target="$2"
     domain="$3"
-    ssl="$4"
+    ssl=false
     configfile='/var/frostproxy/config.cfg'
     
     if [ ! -f "${configfile}" ] ; then
@@ -53,22 +53,9 @@ if [ "$1" == "tunnel" ]; then
                 exit 1
             fi
             
-            if [ -z "$4" ]; then
-                echo "specify a ssl: true or false"
-                exit 1
-            fi
 
-            if [ "$4" != "true" ] && [ "$4" != "false" ]; then
-                echo "specify a ssl: true or false"
-                exit 1
-            fi
-            
-            if [ "$4" == "true" ]; then
-                ssl="true"
-            fi
-            
-            if [ "$4" == "false" ]; then
-                ssl="false"
+            if [ "$4" == "-ssl" ]; then
+                ssl=true
             fi
 
             echo "Creating tunnel..."
@@ -76,25 +63,25 @@ if [ "$1" == "tunnel" ]; then
             set IP=%hostname -I | awk '{print $1}'
 
 
-            set /a sum=%IP% + %2
-            responsetunnel=curl -X POST https://frostproxy.com/api/tunnel/add/"$domain" -d "{ ID: '$token', target: '%sum%', ssl: '$ssl' }"
+            #set /a sum=%IP% + %2
+            #responsetunnel=curl -X POST https://frostproxy.com/api/tunnel/add/"$domain" -d "{ ID: '$token', target: '%sum%', ssl: '$ssl' }"
 
 
 
-            if [ "$responsetunnel.statusCode" == "200" ]; then
-                echo "Tunnel created successfully"
-                exit 1
-            fi
+            #if [ "$responsetunnel.statusCode" == "200" ]; then
+            #    echo "Tunnel created successfully"
+            #    exit 1
+           # fi
 
-            if [ "$responsetunnel.statusCode" == "400" ]; then
-                echo "Tunnel already exists"
-                exit 1
-            fi
+            #if [ "$responsetunnel.statusCode" == "400" ]; then
+            #    echo "Tunnel already exists"
+            #    exit 1
+           # fi
 
-            if [ "$responsetunnel.statusCode" == "500" ]; then
-                echo "Invalid token"
-                exit 1
-            fi
+           # if [ "$responsetunnel.statusCode" == "500" ]; then
+           #     echo "Invalid token"
+           #     exit 1
+           # fi
             
 
                echo "Session Status:          Online"

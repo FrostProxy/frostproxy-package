@@ -29,8 +29,8 @@ fi
 
 if [ "$1" == "tunnel" ]; then
     target="$2"
-    domain="$3"
-    ssl=false
+    domain_found=false
+    ssl_found=false
     configfile='/var/frostproxy/config.cfg'
     
     if [ ! -f "${configfile}" ] ; then
@@ -48,19 +48,42 @@ if [ "$1" == "tunnel" ]; then
                 exit 1
             fi
             
-            if [ -z "$3" ]; then
-                echo "specify a Domain: example.com"
-                exit 1
-            fi
-            
 
-            if [ "$4" == "-ssl" ]; then
-                ssl=true
-            fi
+for arg in "$@"; do
+  if [[ "$arg" == *"--domain="* ]]; then
+    domain=$(echo "$arg" | awk -F '=' '{print $2}')
+    domain_found=true
+  fi
+done
+
+for arg in "$@"; do
+  if [[ "$arg" == *"--ssl="* ]]; then
+    ssl_found=true
+  fi
+done
+
+
+            
 
             echo "Creating tunnel..."
 
             set IP=%hostname -I | awk '{print $1}'
+
+            if [ "$domain_found" == true ]; then
+                 echo "Domain: $domain"
+
+
+                 if [ "$ssl_found" == true ]; then
+                     echo "domain = $domain | ssl = true"
+                 else
+                     echo "domain = $domain | ssl = false"
+                 fi
+
+
+            else
+              echo "Domain not found, generating a domain"
+              ssl_found=true
+            fi
 
 
             #set /a sum=%IP% + %2
@@ -82,17 +105,25 @@ if [ "$1" == "tunnel" ]; then
            #     echo "Invalid token"
            #     exit 1
            # fi
+
+            echo "Tunnel Running! Press CTRL+C to exit."
             
 
                echo "Session Status:          Online"
                echo "Tunnels:                 1"
                echo "Website Interface:       $domain"
-               if [ "$ssl" == "true" ]; then
+               if [ "$ssl_found" == "true" ]; then
                    echo "Forwarding:              https://$domain -> $target"
                fi
-               if [ "$ssl" == "false" ]; then
+               if [ "$ssl_found" == "false" ]; then
                    echo "Forwarding:              http://$domain -> $target"
                fi
+
+               trap "echo 'User has exited the session & tunnel has been deleted!'; exit" SIGINT
+
+           while true; do
+           sleep 1
+           done
             
         fi
     fi

@@ -109,7 +109,12 @@ if [ "$1" == "tunnel" ]; then
             echo "Tunnel Running! Press CTRL+C to exit."
             
             echo "Session Status:          Online"
-            echo "Tunnels:                 1"
+            if [ "$ssl_found" == "true" ]; then
+                echo "Session Protocol:        https"
+            fi
+            if [ "$ssl_found" == "false" ]; then
+                echo "Session Protocol:        http"
+            fi
             echo "Website Interface:       $domain"
             if [ "$ssl_found" == "true" ]; then
                 echo "Forwarding:              https://$domain -> '$targetmaster'"

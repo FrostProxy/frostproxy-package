@@ -1,5 +1,5 @@
 Package: frostproxy
-Version: 2.0
+Version: 2.1
 Architecture: all
-Maintainer: Your Name <your@email.com>
+Maintainer: Ewen MacCulloch <ewen@macculloch.net>
 Description: A tool for managing frostproxy agents.

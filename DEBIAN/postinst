@@ -1,4 +1,5 @@
 #!/bin/bash
-#mkdir -p /usr/local/bin
-#cp  /usr/local/bin/
+set -e
+
+mkdir -p /var/frostproxy
 chmod +x /usr/bin/frostproxy

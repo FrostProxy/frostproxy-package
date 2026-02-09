@@ -1,254 +1,254 @@
 #!/bin/bash
 
-if [ -z "$1" ]; then
-    echo "Enter a command, Use 'frostproxy help' for more info"
-    exit 1
+BASE_URL="${FROSTPROXY_BASE:-https://frostproxy.com}"
+CONFIG_FILE="/var/frostproxy/config.cfg"
+DEBUG_ENV="${FROSTPROXY_DEBUG:-false}"
+
+have_jq=false
+if command -v jq >/dev/null 2>&1; then
+    have_jq=true
 fi
 
-if [ "$1" == "help" ]; then
-    echo "Usage: frostproxy [command]"
-    echo ""
-    echo "Commands:"
-    echo "  config token [token]"
-    echo "  tunnel target 3000 example.com --ssl (OR for no ssl) tunnel target 3000 example.com"
-    echo "  list [tunnels]"
-    exit 0
-fi
+print_help() {
+    cat <<'EOF'
+Usage: frostproxy <command> [options]
 
-if [ "$1" == "config" ]; then
+Commands:
+  help                                   Show this help
+  config token <ID>                      Store your FrostProxy user ID/token
+  tunnel <target> <domain> [--ssl|--no-ssl] [--debug]
+                                         Create a tunnel to <target> (host:port)
+  delete <domain> [--debug]              Delete a tunnel by domain
+  list tunnels [--debug]                 List tunnels for the stored token
+
+Environment overrides:
+  FROSTPROXY_BASE   Base URL (default: https://frostproxy.com)
+  FROSTPROXY_DEBUG  true/false to dry-run without calling the API
+EOF
+}
+
+require_arg() {
     if [ -z "$2" ]; then
-        echo "specify a config: token"
+        echo "Error: $1" >&2
         exit 1
     fi
-    
-    configfile='/var/frostproxy/config.cfg'
-    
-    if [ ! -f "${configfile}" ] ; then
-        mkdir -p /var/frostproxy/
-        touch $configfile
-        echo "token=\"$2\"" | sudo tee --append $configfile
-    fi
-    exit 0
-fi
+}
 
-if [ "$1" == "tunnel" ]; then
-    target="$2"
-    domain_found=false
-    ssl_found=false
-    configfile='/var/frostproxy/config.cfg'
-    
-    if [ ! -f "${configfile}" ] ; then
-        echo "config file not found, run 'frostproxy config [token]'"
+ensure_config() {
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo "Config not found. Run: frostproxy config token <ID>" >&2
         exit 1
-    else
-        
-        source $configfile
-        if [ -f "$token" ]; then
-            echo "token not found, run 'frostproxy config [token]'"
-            exit 1
-        else
-            if [ -z "$2" ]; then
-                echo "specify a target: 8000"
+    fi
+    # shellcheck source=/dev/null
+    source "$CONFIG_FILE"
+    if [ -z "$token" ]; then
+        echo "Token missing in $CONFIG_FILE. Re-run: frostproxy config token <ID>" >&2
+        exit 1
+    fi
+}
+
+print_debug() {
+    if [ "$DEBUG" = true ]; then
+        echo "[debug] $*"
+    fi
+}
+
+request() {
+    local method="$1"
+    local url="$2"
+    local body="$3"
+    if [ "$DEBUG" = true ]; then
+        echo "[dry-run] curl --silent --show-error --fail-with-body -X $method --header 'Content-Type: application/json' --data-raw '$body' '$url'"
+        echo "[dry-run] Simulated success."
+        return 0
+    fi
+
+    response=$(curl --silent --show-error --fail-with-body -X "$method" --header "Content-Type: application/json" --data-raw "$body" "$url")
+    status=$?
+    if [ $status -ne 0 ]; then
+        echo "Request failed (curl exit $status)" >&2
+        echo "$response"
+        exit 1
+    fi
+
+    if [ "$have_jq" = true ]; then
+        status_code=$(echo "$response" | jq -r 'select(.statusCode!=null)|.statusCode')
+        if [ -n "$status_code" ]; then
+            error=$(echo "$response" | jq -r 'select(.error!=null)|.error')
+            message=$(echo "$response" | jq -r 'select(.message!=null)|.message')
+            domain_val=$(echo "$response" | jq -r 'select(.domain!=null)|.domain')
+            url_val=$(echo "$response" | jq -r 'select(.url!=null)|.url')
+            resolved_ip=$(echo "$response" | jq -r 'select(.resolvedIP!=null)|.resolvedIP')
+
+            echo "statusCode: $status_code"
+            [ -n "$error" ] && echo "error: $error"
+            [ -n "$message" ] && echo "message: $message"
+            [ -n "$domain_val" ] && echo "domain: $domain_val"
+            [ -n "$url_val" ] && echo "url: $url_val"
+            [ -n "$resolved_ip" ] && echo "resolvedIP: $resolved_ip"
+
+            if [ "$status_code" != "200" ] && [ "$status_code" != "201" ]; then
                 exit 1
             fi
+            return 0
+        fi
+    else
+        status_code=$(echo "$response" | sed -n 's/.*"statusCode"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' | head -n1)
+        if [ -n "$status_code" ]; then
+            echo "statusCode: $status_code"
+        fi
+        error_val=$(echo "$response" | sed -n 's/.*"error"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)
+        message_val=$(echo "$response" | sed -n 's/.*"message"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)
+        [ -n "$error_val" ] && echo "error: $error_val"
+        [ -n "$message_val" ] && echo "message: $message_val"
+        if [ -n "$status_code" ] && [ "$status_code" != "200" ] && [ "$status_code" != "201" ]; then
+            exit 1
+        fi
+    fi
 
-            
-            for arg in "$@"; do
-              if [[ "$arg" == *"--domain="* ]]; then
-                domain=$(echo "$arg" | awk -F '=' '{print $2}')
-                domain_found=true
-              fi
-            done
-            
-            for arg in "$@"; do
-              if [[ "$arg" == *"--ssl"* ]]; then
-                ssl_found=true
-              fi
-            done
-            
-            
-            set IP=%hostname -I | awk '{print $1}'
-            targetmaster = "http://" + $target + $IP
+    echo "$response"
+}
 
+parse_flags() {
+    DEBUG=false
+    # inherit env default
+    if [ "$DEBUG_ENV" = "true" ]; then
+        DEBUG=true
+    fi
+    for arg in "$@"; do
+        if [ "$arg" = "--debug" ]; then
+            DEBUG=true
+        fi
+    done
+}
 
-            
-            if [ "$domain_found" == true ]; then
-                 echo "Domain: $domain"
-                 
-                 if [ "$ssl_found" == true ]; then
-                     echo "domain = $domain | ssl = true"
-                 else
-                     echo "domain = $domain | ssl = false"
-                 fi
-                 
+require_local_target() {
+    local t="$1"
+    case "$t" in
+        http://127.0.0.1:*|https://127.0.0.1:*|http://localhost:*|https://localhost:*|127.0.0.1:*|localhost:*) return 0 ;;
+    esac
+    echo "Target must be localhost (e.g., 127.0.0.1:3000 or http://localhost:3000)" >&2
+    exit 1
+}
+
+print_session() {
+    local account="$1"
+    local target="$2"
+    local domain="$3"
+    local ssl="$4"
+    clear
+    echo "Session Active: Active"
+    echo "Account: $account"
+    echo "Localhost: $target"
+    echo "Tunnel: $target -> $domain"
+    if [ "$ssl" = true ]; then
+        echo "Protocol: https"
+    else
+        echo "Protocol: http"
+    fi
+}
+
+cmd="$1"
+shift || true
+
+case "$cmd" in
+    help|-h|--help)
+        print_help
+        exit 0
+        ;;
+    config)
+        sub="$1"; shift || true
+        if [ "$sub" != "token" ]; then
+            echo "Unknown config option. Use: frostproxy config token <ID>" >&2
+            exit 1
+        fi
+        require_arg "Missing token ID" "$1"
+        mkdir -p /var/frostproxy
+        echo "token=\"$1\"" > "$CONFIG_FILE"
+        echo "Saved token to $CONFIG_FILE"
+        ;;
+    tunnel)
+        parse_flags "$@"
+        target="$1"; domain="$2"; shift 2 || true
+        require_arg "Missing target (host:port)" "$target"
+        require_arg "Missing domain" "$domain"
+        case "$domain" in
+            -*) echo "Invalid domain (looks like a flag): $domain" >&2; exit 1 ;;
+        esac
+        case "$target" in
+            *:*) ;; # ok
+            *) echo "Target should look like host:port (e.g., 127.0.0.1:3000)" >&2; exit 1 ;;
+        esac
+        require_local_target "$target"
+        ssl=true
+        for arg in "$@"; do
+            case "$arg" in
+                --ssl) ssl=true ;;
+                --no-ssl) ssl=false ;;
+            esac
+        done
+        ensure_config
+        body=$(printf '{"ID":"%s","target":"%s","ssl":%s}' "$token" "$target" "$ssl")
+        url="$BASE_URL/api/tunnel/add/$domain"
+        if [ "$DEBUG" = true ]; then
+            request "POST" "$url" "$body"
+            print_session "$token" "$target" "$domain" "$ssl"
+            echo "(dry-run) Press Ctrl+C to exit."
+            while true; do sleep 1; done
+        else
+            if request "POST" "$url" "$body"; then
+                print_session "$token" "$target" "$domain" "$ssl"
+                cleanup() {
+                    echo "Closing tunnel..."
+                    body_del=$(printf '{"ID":"%s"}' "$token")
+                    url_del="$BASE_URL/api/tunnel/delete/$domain"
+                    request "POST" "$url_del" "$body_del" >/dev/null 2>&1 || true
+                    exit 0
+                }
+                trap cleanup INT TERM EXIT
+                while true; do sleep 1; done
+            fi
+        fi
+        ;;
+    delete)
+        parse_flags "$@"
+        domain="$1"; shift || true
+        require_arg "Missing domain" "$domain"
+        ensure_config
+        body=$(printf '{"ID":"%s"}' "$token")
+        url="$BASE_URL/api/tunnel/delete/$domain"
+        request "POST" "$url" "$body"
+        ;;
+    list)
+        parse_flags "$@"
+        sub="$1"; shift || true
+        if [ "$sub" != "tunnels" ]; then
+            echo "Usage: frostproxy list tunnels" >&2
+            exit 1
+        fi
+        ensure_config
+        body=$(printf '{"ID":"%s"}' "$token")
+        url="$BASE_URL/api/tunnel/list"
+        if [ "$DEBUG" = true ]; then
+            request "POST" "$url" "$body"
+        else
+            response=$(curl --silent --show-error --fail-with-body -X "POST" --header "Content-Type: application/json" --data-raw "$body" "$url")
+            status=$?
+            if [ $status -ne 0 ]; then
+                echo "Request failed (curl exit $status)" >&2
+                echo "$response"
+                exit 1
+            fi
+            if [ "$have_jq" = true ]; then
+                echo "$response" | jq -r '.data[]? | "domain: \(.domain) | target: \(.target) | ssl: \(.ssl)"'
             else
-              echo "Domain not found, generating a domain"
-              domain="test.frostproxy.com"
-              ssl_found=true
+                echo "$response"
             fi
-            
-            #set /a sum=%IP% + %2
-            #responsetunnel=curl -X POST https://frostproxy.com/api/tunnel/add/"$domain" -d "{ ID: '$token', target: '%sum%', ssl: '$ssl' }"
-            
-            #if [ "$responsetunnel.statusCode" == "200" ]; then
-            #    echo "Tunnel created successfully"
-            #    exit 1
-            #fi
-            
-            #if [ "$responsetunnel.statusCode" == "400" ]; then
-            #    echo "Tunnel already exists"
-            #    exit 1
-            #fi
-            
-            #if [ "$responsetunnel.statusCode" == "500" ]; then
-            #    echo "Invalid token"
-            #    exit 1
-            #fi
-            
-            clear
-            echo "Tunnel Running! Press CTRL+C to exit."
-            
-            echo "Session Status:          Online"
-            if [ "$ssl_found" == "true" ]; then
-                echo "Session Protocol:        https"
-            fi
-            if [ "$ssl_found" == "false" ]; then
-                echo "Session Protocol:        http"
-            fi
-            echo "Website Interface:       $domain"
-            if [ "$ssl_found" == "true" ]; then
-                echo "Forwarding:              https://$domain -> '$targetmaster'"
-            fi
-            if [ "$ssl_found" == "false" ]; then
-                echo "Forwarding:              http://$domain -> '$targetmaster'"
-            fi
-            
-            trap "echo 'User has exited the session & tunnel has been deleted!'; exit" SIGINT
-            
-            while true; do
-              sleep 1
-            done
-            
         fi
-    fi
-fi
-
-if [ "$1" == "list" ]; then
-    echo "Listing tunnels..."
-    
-    configfile='/var/frostproxy/config.cfg'
-    
-    if [ ! -f "${configfile}" ] ; then
-        echo "config file not found, run 'frostproxy config [token]'"
+        ;;
+    *)
+        echo "Unknown command: $cmd" >&2
+        echo "Run 'frostproxy help' for usage."
         exit 1
-    else
-        
-        source $configfile
-        if [ -f "$token" ]; then
-            echo "token not found, run 'frostproxy config [token]'"
-            exit 1
-        else
-            if [ -z "$2" ]; then
-                echo "specify a config: tunnels"
-            fi
-            
-            if [ "$2" == "tunnels" ]; then
-                echo "Tunnel List:"
-                #tunnelresponse=curl -X GET https://frostproxy.com/api/tunnel/list -d "{ ID: '$token' }"
-                
-                #if [ "$tunnelresponse.statusCode" == "200" ]; then
-                #    echo "$tunnelresponse"
-                #    exit 1
-                #fi
-                
-                #if [ "$tunnelresponse.statusCode" == "500" ]; then
-                #    echo "Invalid token"
-                #    exit 1
-                #
-fi
-            fi
-        fi
-    fi
-fi
-
-if [ "$1" == "delete" ]; then
-    echo "Deleting tunnel..."
-    
-    domain="$2"
-    configfile='/var/frostproxy/config.cfg'
-    
-    if [ ! -f "${configfile}" ] ; then
-        echo "config file not found, run 'frostproxy config [token]'"
-        exit 1
-    else
-        
-        source $configfile
-        if [ -f "$token" ]; then
-            echo "token not found, run 'frostproxy config [token]'"
-            exit 1
-        else
-            if [ -z "$2" ]; then
-                echo "specify a domain: example.com"
-                exit 1
-            fi
-            
-            #deleteresponse=curl -X DELETE https://frostproxy.com/api/tunnel/delete -d "{ ID: '$token', domain: '$domain' }"
-            
-            #if [ "$deleteresponse.statusCode" == "200" ]; then
-            #    echo "Tunnel deleted successfully"
-            #    exit 1
-            #fi
-            
-            #if [ "$deleteresponse.statusCode" == "400" ]; then
-            #    echo "Tunnel not found"
-            #    exit 1
-            #fi
-            
-            #if [ "$deleteresponse.statusCode" == "500" ]; then
-            #    echo "Invalid token"
-            #            #if [ "$deleteresponse.statusCode" == "500" ]; then
-            #    echo "Invalid token"
-            #    exit 1
-            #fi
-        fi
-    fi
-fi
-
-if [ "$1" == "list" ]; then
-    echo "Listing tunnels..."
-    
-    configfile='/var/frostproxy/config.cfg'
-    
-    if [ ! -f "${configfile}" ] ; then
-        echo "config file not found, run 'frostproxy config [token]'"
-        exit 1
-    else
-        
-        source $configfile
-        if [ -f "$token" ]; then
-            echo "token not found, run 'frostproxy config [token]'"
-            exit 1
-        else
-            #listresponse=curl -X GET https://frostproxy.com/api/tunnel/list -d "{ ID: '$token' }"
-            
-            #if [ "$listresponse.statusCode" == "200" ]; then
-            #    echo "$listresponse.response"
-            #    exit 1
-            #fi
-            
-            #if [ "$listresponse.statusCode" == "400" ]; then
-            #    echo "No tunnels found"
-            #    exit 1
-            #fi
-            
-            #if [ "$listresponse.statusCode" == "500" ]; then
-            #    echo "Invalid token"
-            #    exit 1
-            #fi
-        fi
-    fi
-fi
-
-
-
-
+        ;;
+esac

@@ -1,35 +1,37 @@
-# frostproxy-package
-Install frostproxy tunnel
+frostproxy-package
+Install the FrostProxy CLI to manage tunnels via the hosted API.
 
-```js
-mkdir -p frostproxy/DEBIAN
+Build the DEB package
+```bash
+dpkg-deb --build frostproxy-package
 ```
 
-# Build the DEB package:
-
-```js
-dpkg-deb --build frostproxy
-```
-```js
-dpkg -i frostproxy.deb
+Install the package
+```bash
+sudo apt-get install ./frostproxy-package.deb
 ```
 
-# Install the package using apt-get.
-
-```js
-sudo apt-get install ./frostproxy.deb
+Reinstall after changes
+```bash
+sudo apt-get remove frostproxy
+dpkg-deb --build frostproxy-package
+sudo apt-get install ./frostproxy-package.deb
 ```
 
-# Test the frostproxy tunnel command.
-
-```js
-frostproxy tunnel localhost:3000 domain.com
+CLI usage
+```bash
+frostproxy help
+frostproxy config token <ID>
+frostproxy tunnel <target> <domain> [--ssl|--no-ssl] [--debug]
+frostproxy delete <domain> [--debug]
+frostproxy list tunnels [--debug]
 ```
 
-# General Notes:
-```
-chmod 755 /frostproxy/DEBIAN/postinst
-dpkg-deb --build frostproxy
-sudo apt-get install ./frostproxy.deb
-apt remove frostproxy
-``
+Behavior
+- Stores token at `/var/frostproxy/config.cfg` via `frostproxy config token <ID>`.
+- Base URL defaults to `https://frostproxy.com`; override with `FROSTPROXY_BASE`.
+- Debug/dry-run: set `FROSTPROXY_DEBUG=true` or pass `--debug` to print the request without calling the API (still validates arguments/config).
+
+Notes
+- `postinst` ensures `/var/frostproxy` exists and the CLI is executable.
+- Remove: `apt remove frostproxy`.
